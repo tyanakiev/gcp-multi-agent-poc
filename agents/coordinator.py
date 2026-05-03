@@ -1,14 +1,21 @@
 """
 Coordinator Agent - Specialized for coordinating and synthesizing
+
+Uses Google Cloud ADK for production-ready agent implementation.
 """
 
-from core.agent import Agent
-from core.types import AgentRole
+from typing import Any, Dict, Optional
+import structlog
+
+from sdk.base_agent_adk import ADKAgent
+from sdk.message_types import AgentMessage, MessageKind
+
+logger = structlog.get_logger(__name__)
 
 
-class CoordinatorAgent(Agent):
+class CoordinatorAgent(ADKAgent):
     """
-    Agent specialized in coordination and synthesis.
+    Agent specialized in coordination and synthesis using Google Cloud ADK.
 
     Responsibilities:
     - Coordinate activities between agents
@@ -17,7 +24,7 @@ class CoordinatorAgent(Agent):
     - Provide overall guidance and direction
     """
 
-    def __init__(self, agent_id: str = "coordinator"):
+    def __init__(self, agent_id: str = "coordinator", model: str = "gemini-2.0-flash"):
         """Initialize the coordinator agent with ADK pattern"""
         instruction = """You are an expert coordinator and synthesizer. Your role is to:
 1. Coordinate activities and delegate tasks strategically
@@ -30,9 +37,77 @@ Be strategic, collaborative, and focused on delivering integrated solutions."""
 
         super().__init__(
             agent_id=agent_id,
-            role=AgentRole.COORDINATOR,
-            instruction=instruction
+            name="Coordinator",
+            model=model,
+            instruction=instruction,
+            tools=[],
         )
+
+    async def handle_message(
+        self,
+        message: AgentMessage,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> AgentMessage:
+        """
+        Handle incoming coordination request.
+
+        Args:
+            message: Incoming message with coordination task
+            context: Execution context
+
+        Returns:
+            Response message with coordination results
+        """
+        try:
+            # Extract the task from the payload
+            task = message.payload.get("task", "")
+            agents_involved = message.payload.get("agents", [])
+
+            if not task:
+                return AgentMessage(
+                    sender=self.agent_id,
+                    recipient=message.sender,
+                    kind=MessageKind.RESPONSE,
+                    payload={"error": "No task provided"},
+                    trace_id=message.trace_id,
+                    parent_id=message.id,
+                )
+
+            coordination_prompt = task
+            if agents_involved:
+                coordination_prompt = f"Coordinate the following agents: {', '.join(agents_involved)}\n\nTask: {task}"
+
+            # Perform coordination (using ADK agent if available)
+            if self.use_google_adk and self.google_adk_agent:
+                result = await self.google_adk_agent.run(coordination_prompt)
+            else:
+                # Fallback: simulate coordination
+                result = f"Coordination plan:\n{coordination_prompt[:150]}..."
+
+            logger.info(
+                "coordination_completed",
+                agent_id=self.agent_id,
+                trace_id=message.trace_id,
+                agents_involved=len(agents_involved),
+            )
+
+            return AgentMessage(
+                sender=self.agent_id,
+                recipient=message.sender,
+                kind=MessageKind.RESPONSE,
+                payload={"result": result, "agents": agents_involved},
+                trace_id=message.trace_id,
+                parent_id=message.id,
+            )
+
+        except Exception as e:
+            logger.error(
+                "coordination_failed",
+                agent_id=self.agent_id,
+                trace_id=message.trace_id,
+                error=str(e),
+            )
+            raise
 
     def get_description(self) -> str:
         """Get agent description"""

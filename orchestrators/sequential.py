@@ -5,100 +5,128 @@ Executes agents one after another, with each agent receiving the output
 from the previous one. Best for data pipelines and step-by-step processes.
 
 Flow: Agent1 -> Agent2 -> Agent3 -> ... -> Final Output
+
+Uses Google Cloud ADK for production-ready orchestration.
 """
 
-import logging
+import asyncio
+import time
 from typing import Dict, List, Optional, Any
+import structlog
 
-from core.orchestrator import Orchestrator
-from core.types import OrchestrationStrategy, Task, AgentResponse
-from core.agent import Agent
+from sdk.orchestrator_base import ADKOrchestrator
+from sdk.base_agent_adk import ADKAgent
+from sdk.message_types import AgentMessage, MessageKind, MessageEnvelope
+from sdk.pubsub_client import PubSubClient
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
-class SequentialOrchestrator(Orchestrator):
+class SequentialOrchestrator(ADKOrchestrator):
     """
-    Sequential orchestration strategy.
+    Sequential orchestration strategy using Google Cloud ADK.
 
     Agents execute in order, with each agent's output becoming the next agent's input.
+    Uses Pub/Sub for message routing between agents.
     """
 
-    def __init__(self, orchestrator_id: str, agents: Dict[str, Agent]):
-        """Initialize sequential orchestrator"""
-        super().__init__(orchestrator_id, OrchestrationStrategy.SEQUENTIAL, agents)
-
-    async def _execute_strategy(
+    def __init__(
         self,
-        tasks: List[Task],
-        initial_context: Optional[Dict[str, Any]] = None
-    ) -> List[AgentResponse]:
+        orchestrator_id: str,
+        agents: Dict[str, ADKAgent],
+        pubsub_client: Optional[PubSubClient] = None,
+    ):
+        """Initialize sequential orchestrator"""
+        super().__init__(
+            orchestrator_id=orchestrator_id,
+            agents=agents,
+            pubsub_client=pubsub_client,
+        )
+        # Get ordered list of agent IDs for sequential execution
+        self.agent_order = list(agents.keys())
+
+        logger.info(
+            "sequential_orchestrator_initialized",
+            orchestrator_id=orchestrator_id,
+            agent_order=self.agent_order,
+        )
+
+    async def execute(
+        self,
+        messages: List[AgentMessage],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[AgentMessage]:
         """
-        Execute tasks sequentially.
+        Execute messages sequentially through agents.
 
-        Each task is executed by the corresponding agent, and the output
-        is passed as context to the next task.
+        Each message is routed to the first agent, then results are
+        passed to subsequent agents in order.
+
+        Args:
+            messages: Initial messages to process
+            context: Execution context
+
+        Returns:
+            Final messages after sequential processing
         """
-        responses = []
-        context = initial_context or {}
+        start_time = time.time()
 
-        for i, task in enumerate(tasks):
-            agent = self.get_agent(task.agent_role.value)
+        if not messages:
+            logger.warning("no_messages_to_execute", orchestrator_id=self.orchestrator_id)
+            return []
 
-            if not agent:
-                logger.error(f"Agent {task.agent_role.value} not found")
-                responses.append(
-                    AgentResponse(
-                        agent_id=task.agent_role.value,
-                        output="",
-                        status="error",
-                        execution_time=0,
-                        error=f"Agent {task.agent_role.value} not found"
-                    )
+        # Start with initial messages routed to first agent
+        if not self.agent_order:
+            logger.error("no_agents_configured", orchestrator_id=self.orchestrator_id)
+            return messages
+
+        current_messages = messages
+        logger.info(
+            "starting_sequential_execution",
+            orchestrator_id=self.orchestrator_id,
+            initial_message_count=len(messages),
+            agent_count=len(self.agent_order),
+        )
+
+        try:
+            # Process through each agent in sequence
+            for agent_id in self.agent_order:
+                next_messages = []
+
+                for message in current_messages:
+                    # Route to current agent
+                    message.recipient = agent_id
+                    response = await self.route_message(message, context)
+                    next_messages.append(response)
+
+                current_messages = next_messages
+
+                logger.info(
+                    "sequential_stage_completed",
+                    orchestrator_id=self.orchestrator_id,
+                    agent_id=agent_id,
+                    message_count=len(current_messages),
                 )
-                continue
 
-            # Execute agent with accumulated context
-            logger.info(f"Executing task {i+1}/{len(tasks)}: {task.task_id}")
-            response = await agent.execute(task.description, context)
-            responses.append(response)
+            execution_time = time.time() - start_time
+            self.total_duration += execution_time
+            self.execution_count += 1
 
-            # Add previous output to context for next agent
-            context[f"previous_output_{i}"] = response.output
-            context["previous_agent"] = response.agent_id
+            logger.info(
+                "sequential_execution_completed",
+                orchestrator_id=self.orchestrator_id,
+                execution_time=execution_time,
+                final_message_count=len(current_messages),
+            )
 
-            # Update context with task parameters
-            context.update(task.parameters)
+            return current_messages
 
-            if response.status != "success":
-                logger.warning(f"Task {task.task_id} failed: {response.error}")
-
-        return responses
-
-    def _aggregate_results(self, responses: List[AgentResponse]) -> str:
-        """
-        Aggregate sequential results, highlighting the final output
-        from the last successful agent.
-        """
-        successful_responses = [r for r in responses if r.status == "success"]
-
-        if not successful_responses:
-            return "No successful agent outputs"
-
-        # Return the output from the last successful agent
-        final_output = successful_responses[-1].output
-
-        # Include intermediate steps for context
-        summary = "Sequential Processing Results:\n"
-        summary += "=" * 50 + "\n\n"
-
-        for i, response in enumerate(responses, 1):
-            if response.status == "success":
-                summary += f"Step {i} ({response.agent_id}):\n"
-                summary += f"{response.output}\n"
-                summary += f"(Execution time: {response.execution_time:.2f}s)\n\n"
-            else:
-                summary += f"Step {i} ({response.agent_id}): ERROR - {response.error}\n\n"
-
-        return summary
+        except Exception as e:
+            self.error_count += 1
+            logger.error(
+                "sequential_execution_failed",
+                orchestrator_id=self.orchestrator_id,
+                error=str(e),
+            )
+            raise
 

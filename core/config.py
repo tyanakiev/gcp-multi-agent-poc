@@ -29,6 +29,27 @@ ENABLE_VERTEX_AI = os.getenv("ENABLE_VERTEX_AI", "true").lower() == "true"
 
 # ADK Configuration
 ADK_DEBUG = os.getenv("ADK_DEBUG", "false").lower() == "true"
+USE_ADK_NATIVE = os.getenv("USE_ADK_NATIVE", "true").lower() == "true"
+
+# Pub/Sub Configuration
+PUBSUB_TOPIC_PREFIX = os.getenv("PUBSUB_TOPIC_PREFIX", "agent")
+PUBSUB_SUBSCRIPTION_PREFIX = os.getenv("PUBSUB_SUBSCRIPTION_PREFIX", "agent-sub")
+PUBSUB_DLQ_TOPIC = os.getenv("PUBSUB_DLQ_TOPIC", "dead-letter-queue")
+PUBSUB_EMULATOR_HOST = os.getenv("PUBSUB_EMULATOR_HOST")
+
+# Observability Configuration
+ENABLE_STRUCTURED_LOGGING = os.getenv("ENABLE_STRUCTURED_LOGGING", "true").lower() == "true"
+TRACE_ID_HEADER = "X-Trace-ID"
+SERVICE_NAME = os.getenv("SERVICE_NAME", "multi-agent-service")
+
+# Health Check Configuration
+HEALTH_CHECK_INTERVAL = int(os.getenv("HEALTH_CHECK_INTERVAL", "30"))  # seconds
+READINESS_PROBE_PORT = int(os.getenv("READINESS_PROBE_PORT", "8080"))
+
+# Retry Configuration
+MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
+RETRY_BACKOFF_MULTIPLIER = float(os.getenv("RETRY_BACKOFF_MULTIPLIER", "2.0"))
+INITIAL_RETRY_DELAY = float(os.getenv("INITIAL_RETRY_DELAY", "1.0"))  # seconds
 
 # Validation - Optional for demos, required for actual execution
 if not GOOGLE_API_KEY and not GOOGLE_PROJECT_ID:
