@@ -24,7 +24,7 @@ class CoordinatorAgent(ADKAgent):
     - Provide overall guidance and direction
     """
 
-    def __init__(self, agent_id: str = "coordinator", model: str = "gemini-2.0-flash"):
+    def __init__(self, agent_id: str = "coordinator", model: str = "gemini-2.5-flash"):
         """Initialize the coordinator agent with ADK pattern"""
         instruction = """You are an expert coordinator and synthesizer. Your role is to:
 1. Coordinate activities and delegate tasks strategically
@@ -77,12 +77,10 @@ Be strategic, collaborative, and focused on delivering integrated solutions."""
             if agents_involved:
                 coordination_prompt = f"Coordinate the following agents: {', '.join(agents_involved)}\n\nTask: {task}"
 
-            # Perform coordination (using ADK agent if available)
-            if self.use_google_adk and self.google_adk_agent:
-                result = await self.google_adk_agent.run(coordination_prompt)
-            else:
-                # Fallback: simulate coordination
-                result = f"Coordination plan:\n{coordination_prompt[:150]}..."
+            result = await self.invoke_llm(
+                coordination_prompt,
+                fallback=f"Coordination plan:\n{coordination_prompt[:150]}...",
+            )
 
             logger.info(
                 "coordination_completed",

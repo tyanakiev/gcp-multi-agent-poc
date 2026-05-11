@@ -24,7 +24,7 @@ class WriterAgent(ADKAgent):
     - Format content appropriately
     """
 
-    def __init__(self, agent_id: str = "writer", model: str = "gemini-2.0-flash"):
+    def __init__(self, agent_id: str = "writer", model: str = "gemini-2.5-flash"):
         """Initialize the writer agent with ADK pattern"""
         instruction = """You are an expert writer and content creator. Your role is to:
 1. Create clear, engaging, and well-structured content
@@ -79,12 +79,10 @@ Be creative, clear, and focused on delivering high-quality written content."""
             if source_material:
                 write_prompt = f"Using this source material: {source_material}\n\nTask: {task}"
 
-            # Perform writing (using ADK agent if available)
-            if self.use_google_adk and self.google_adk_agent:
-                result = await self.google_adk_agent.run(write_prompt)
-            else:
-                # Fallback: simulate writing
-                result = f"Written content ({content_type}):\n{write_prompt[:150]}..."
+            result = await self.invoke_llm(
+                write_prompt,
+                fallback=f"Written content ({content_type}):\n{write_prompt[:150]}...",
+            )
 
             logger.info(
                 "content_created",

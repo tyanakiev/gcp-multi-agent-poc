@@ -21,6 +21,8 @@ except ImportError:
 import structlog
 from sdk.message_types import AgentMessage, MessageKind, MessageEnvelope
 from core.config import ENABLE_STRUCTURED_LOGGING, TRACE_ID_HEADER, SERVICE_NAME
+from core.adk_tool_utils import normalize_tools_for_adk
+from core.adk_runtime import run_agent_single_turn
 
 # Configure logging
 if ENABLE_STRUCTURED_LOGGING:
@@ -33,8 +35,7 @@ if ENABLE_STRUCTURED_LOGGING:
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
-            structlog.processors.UnicodeDecimalEncoder(),
-            structlog.processors.JSONRenderer()
+            structlog.processors.JSONRenderer(),
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -86,6 +87,7 @@ class ADKAgent(ABC):
         self.tools = tools or []
         self.max_retries = max_retries
         self.timeout = timeout
+        self._adk_tools = normalize_tools_for_adk(self.tools)
 
         # Tracking
         self.instance_id = str(uuid.uuid4())
@@ -103,7 +105,7 @@ class ADKAgent(ABC):
                     name=name,
                     model=model,
                     instruction=instruction,
-                    tools=tools or [],
+                    tools=self._adk_tools,
                 )
                 self.use_google_adk = True
                 logger.info(
@@ -122,6 +124,17 @@ class ADKAgent(ABC):
         """Initialize the agent - override in subclasses"""
         self.health_status = "ready"
         logger.info("adk_agent_ready", agent_id=self.agent_id)
+
+    async def invoke_llm(self, prompt: str, fallback: str) -> str:
+        """Run one ADK turn via Runner, or return fallback when ADK is unavailable."""
+        if self.use_google_adk and self.google_adk_agent:
+            text = await run_agent_single_turn(
+                self.google_adk_agent,
+                prompt,
+                app_name=f"gcp_multi_agent_poc_{self.agent_id}",
+            )
+            return text if text.strip() else fallback
+        return fallback
 
     async def handle_message(
         self,

@@ -13,7 +13,7 @@ GOOGLE_PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
 GOOGLE_REGION = os.getenv("GOOGLE_REGION", "us-central1")
 
 # Model Configuration
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-2.5-flash"
 DEFAULT_TEMPERATURE = 0.7
 
 # Logging Configuration

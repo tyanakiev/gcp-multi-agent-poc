@@ -41,7 +41,7 @@ class QuickStartResearcherAgent(Agent):
             agent_id="researcher",
             role=AgentRole.RESEARCHER,
             instruction="You help users research topics thoroughly.",
-            model="gemini-2.0-flash",  # Using latest Gemini Flash model
+            model="gemini-2.5-flash",
             tools=[WebSearchTool.definition()]
         )
 

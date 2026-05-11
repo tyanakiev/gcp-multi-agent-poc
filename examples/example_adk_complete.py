@@ -67,7 +67,7 @@ Available Tools:
 - analyze_data: Analyze data patterns
 
 Approach research systematically and provide thorough, accurate information.""",
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             tools=[WebSearchTool.definition()]
         )
 
@@ -97,7 +97,7 @@ Available Tools:
 - summarize_document: Summarize complex documents
 
 Provide clear, data-driven analysis with actionable insights.""",
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             tools=[
                 DataAnalysisTool.definition(),
             ]
@@ -128,7 +128,7 @@ Available Tools:
 - generate_content: Generate formatted content in various styles
 
 Produce professional, polished written content that communicates clearly.""",
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             tools=[ContentGenerationTool.definition()]
         )
 
@@ -290,18 +290,28 @@ async def demonstrate_adk_pattern():
     print("\nADK Pattern Basics:")
     print("-" * 70)
     print("""
-from google.adk import Agent
+from google.adk import Agent, Runner
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.genai import types
 
-# Create an ADK agent with tools
-agent = Agent(
+# Define root_agent, then run with Runner + run_async (ADK 1.x)
+root_agent = Agent(
     name="researcher",
-    model="gemini-2.0-flash",
+    model="gemini-2.5-flash",
     instruction="You help users research topics thoroughly.",
-    tools=[web_search, data_analysis],
+    tools=[web_search, analyze_data],
 )
-
-# Execute agent
-response = await agent.run("Research AI trends")
+runner = Runner(
+    app_name="my_app",
+    agent=root_agent,
+    session_service=InMemorySessionService(),
+    auto_create_session=True,
+)
+# Then: async for event in runner.run_async(
+#     user_id="u1", session_id="s1",
+#     new_message=types.Content(role="user", parts=[types.Part(text="...")]),
+# ): ...
+# (See core.adk_runtime.run_agent_single_turn for a minimal helper.)
 """)
 
     print("Our Implementation:")

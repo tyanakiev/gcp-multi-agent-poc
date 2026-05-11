@@ -22,6 +22,8 @@ except ImportError:
 
 from core.types import AgentRole, AgentResponse
 from core.config import GOOGLE_PROJECT_ID, DEFAULT_MODEL, DEFAULT_TEMPERATURE, AGENT_TIMEOUT
+from core.adk_tool_utils import normalize_tools_for_adk
+from core.adk_runtime import run_agent_single_turn
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +75,12 @@ class Agent(ABC):
         # Initialize ADK Agent if available
         if USE_ADK:
             try:
+                adk_tools = normalize_tools_for_adk(self.tools)
                 self.adk_agent = ADKAgent(
                     name=agent_id,
                     model=model,
                     instruction=instruction,
-                    tools=self.tools,
+                    tools=adk_tools,
                 )
                 self.use_adk = True
                 logger.info(f"Agent {agent_id} initialized with Google Cloud ADK")
@@ -127,8 +130,13 @@ class Agent(ABC):
             # Execute via ADK Agent if available
             if self.use_adk and self.adk_agent:
                 try:
-                    response = await self.adk_agent.run(full_prompt)
-                    output = response
+                    output = await run_agent_single_turn(
+                        self.adk_agent,
+                        full_prompt,
+                        app_name=f"gcp_multi_agent_poc_{self.agent_id}",
+                    )
+                    if not output:
+                        raise RuntimeError("ADK returned empty response")
                 except Exception as e:
                     logger.debug(f"ADK execution failed: {e}, falling back to Generative AI")
                     output = await self._execute_with_genai(full_prompt)

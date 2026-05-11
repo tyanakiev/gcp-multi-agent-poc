@@ -23,7 +23,7 @@ class ResearcherAgent(ADKAgent):
     - Provide comprehensive background
     """
 
-    def __init__(self, agent_id: str = "researcher", model: str = "gemini-2.0-flash"):
+    def __init__(self, agent_id: str = "researcher", model: str = "gemini-2.5-flash"):
         """Initialize the researcher agent with ADK pattern"""
         instruction = """You are an expert research agent. Your role is to:
 1. Gather comprehensive information on topics
@@ -74,12 +74,13 @@ Be thorough, accurate, and focus on delivering high-quality research."""
 
             research_query = task or topic
 
-            # Perform research (using ADK agent if available)
-            if self.use_google_adk and self.google_adk_agent:
-                result = await self.google_adk_agent.run(research_query)
-            else:
-                # Fallback: simulate research
-                result = f"Research findings on '{research_query}': Comprehensive analysis available."
+            result = await self.invoke_llm(
+                research_query,
+                fallback=(
+                    f"Research findings on '{research_query}': "
+                    "Comprehensive analysis available (simulated)."
+                ),
+            )
 
             logger.info(
                 "research_completed",

@@ -24,7 +24,7 @@ class AnalyzerAgent(ADKAgent):
     - Break down complex concepts
     """
 
-    def __init__(self, agent_id: str = "analyzer", model: str = "gemini-2.0-flash"):
+    def __init__(self, agent_id: str = "analyzer", model: str = "gemini-2.5-flash"):
         """Initialize the analyzer agent with ADK pattern"""
         instruction = """You are an expert analysis agent. Your role is to:
 1. Analyze information deeply and critically
@@ -73,12 +73,10 @@ Be analytical, insightful, and provide clear reasoning for your conclusions."""
                     parent_id=message.id,
                 )
 
-            # Perform analysis (using ADK agent if available)
-            if self.use_google_adk and self.google_adk_agent:
-                result = await self.google_adk_agent.run(task)
-            else:
-                # Fallback: simulate analysis
-                result = f"Analysis ({analysis_type}): {task[:100]}..."
+            result = await self.invoke_llm(
+                task,
+                fallback=f"Analysis ({analysis_type}): {task[:100]}...",
+            )
 
             logger.info(
                 "analysis_completed",

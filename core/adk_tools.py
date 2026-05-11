@@ -1,18 +1,76 @@
 """
-ADK Tools for agent capabilities - demonstrates how to use Google Cloud ADK tools
+ADK-compatible tools: plain callables (ADK wraps them as FunctionTool).
+
+See: https://google.github.io/adk-docs/get-started/python/
 """
 
-from typing import Any, Dict, Optional, Callable
 from dataclasses import dataclass
+from typing import Any, Callable, Dict, Optional
 
 
 @dataclass
 class ToolDefinition:
-    """Defines an ADK tool that an agent can use"""
+    """Registry entry describing a tool callable (used by get_tool / list_available_tools)."""
+
     name: str
     description: str
     parameters: Dict[str, Any]
-    func: Callable
+    func: Callable[..., Any]
+
+
+# --- Named callables (ADK uses function __name__ in declarations) -----------------
+
+
+def web_search(query: str, max_results: int = 5) -> str:
+    """Search the web for information on a given topic.
+
+    Args:
+        query: The search query string.
+        max_results: Maximum number of results to return (default: 5).
+    """
+    return f"Search results for '{query}' (simulated, max_results={max_results})"
+
+
+def analyze_data(data: str, analysis_type: str = "statistical") -> str:
+    """Analyze structured data and provide insights.
+
+    Args:
+        data: The data to analyze.
+        analysis_type: Type of analysis (statistical, trend, pattern).
+    """
+    return f"Analysis complete for data with {analysis_type} analysis type (simulated)"
+
+
+def generate_content(topic: str, output_format: str = "markdown", length: str = "medium") -> str:
+    """Generate formatted content based on specifications.
+
+    Args:
+        topic: The topic to write about.
+        output_format: Output format (markdown, html, plain text).
+        length: Content length (short, medium, long).
+    """
+    return f"Generated {length} {output_format} content about {topic} (simulated)"
+
+
+def generate_code(language: str, task: str, style: str = "clean") -> str:
+    """Generate code snippets for specified tasks.
+
+    Args:
+        language: Programming language (python, javascript, java, etc.).
+        task: Description of what the code should do.
+        style: Code style preference.
+    """
+    return f"Generated {language} code for task: {task} (simulated, style={style})"
+
+
+def summarize_document(document: str, summary_length: str = "medium") -> str:
+    """Summarize long documents into concise summaries.
+
+    Args:
+        document: The document text to summarize.
+        summary_length: Length of summary (brief, medium, detailed).
+    """
+    return f"Generated {summary_length} summary (simulated, chars={len(document)})"
 
 
 class WebSearchTool:
@@ -25,16 +83,10 @@ class WebSearchTool:
             description="Search the web for information on a given topic",
             parameters={
                 "query": "The search query string",
-                "max_results": "Maximum number of results to return (default: 5)"
+                "max_results": "Maximum number of results to return (default: 5)",
             },
-            func=WebSearchTool.execute
+            func=web_search,
         )
-
-    @staticmethod
-    async def execute(query: str, max_results: int = 5) -> str:
-        """Execute a web search"""
-        # This would integrate with actual search API
-        return f"Search results for '{query}' (simulated)"
 
 
 class DataAnalysisTool:
@@ -47,15 +99,10 @@ class DataAnalysisTool:
             description="Analyze structured data and provide insights",
             parameters={
                 "data": "The data to analyze",
-                "analysis_type": "Type of analysis (statistical, trend, pattern)"
+                "analysis_type": "Type of analysis (statistical, trend, pattern)",
             },
-            func=DataAnalysisTool.execute
+            func=analyze_data,
         )
-
-    @staticmethod
-    async def execute(data: str, analysis_type: str = "statistical") -> str:
-        """Execute data analysis"""
-        return f"Analysis complete for data with {analysis_type} analysis type (simulated)"
 
 
 class ContentGenerationTool:
@@ -68,16 +115,11 @@ class ContentGenerationTool:
             description="Generate formatted content based on specifications",
             parameters={
                 "topic": "The topic to write about",
-                "format": "Output format (markdown, html, plain text)",
-                "length": "Content length (short, medium, long)"
+                "output_format": "Output format (markdown, html, plain text)",
+                "length": "Content length (short, medium, long)",
             },
-            func=ContentGenerationTool.execute
+            func=generate_content,
         )
-
-    @staticmethod
-    async def execute(topic: str, format: str = "markdown", length: str = "medium") -> str:
-        """Execute content generation"""
-        return f"Generated {length} {format} content about {topic} (simulated)"
 
 
 class CodeGenerationTool:
@@ -91,15 +133,10 @@ class CodeGenerationTool:
             parameters={
                 "language": "Programming language (python, javascript, java, etc.)",
                 "task": "Description of what the code should do",
-                "style": "Code style preference"
+                "style": "Code style preference",
             },
-            func=CodeGenerationTool.execute
+            func=generate_code,
         )
-
-    @staticmethod
-    async def execute(language: str, task: str, style: str = "clean") -> str:
-        """Execute code generation"""
-        return f"Generated {language} code for task: {task} (simulated)"
 
 
 class DocumentSummarizationTool:
@@ -112,15 +149,10 @@ class DocumentSummarizationTool:
             description="Summarize long documents into concise summaries",
             parameters={
                 "document": "The document text to summarize",
-                "summary_length": "Length of summary (brief, medium, detailed)"
+                "summary_length": "Length of summary (brief, medium, detailed)",
             },
-            func=DocumentSummarizationTool.execute
+            func=summarize_document,
         )
-
-    @staticmethod
-    async def execute(document: str, summary_length: str = "medium") -> str:
-        """Execute document summarization"""
-        return f"Generated {summary_length} summary (simulated)"
 
 
 class APICacheTool:
@@ -162,9 +194,8 @@ def get_tool(tool_name: str) -> Optional[ToolDefinition]:
 
 def list_available_tools() -> Dict[str, str]:
     """List all available tools with descriptions"""
-    tools = {}
+    tools: Dict[str, str] = {}
     for name, tool_class in AVAILABLE_TOOLS.items():
         definition = tool_class.definition()
         tools[name] = definition.description
     return tools
-
